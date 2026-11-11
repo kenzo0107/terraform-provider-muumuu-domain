@@ -1,0 +1,95 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths-ignore:
+      - 'README.md'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+      - run: go mod download
+      - run: go build -v .
+      - name: Run linters
+        uses: golangci/golangci-lint-action@e7fa5ac41e1cf5b7d48e45e42232ce7ada589601 # v9.1.0
+        with:
+          version: latest
+
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+      - uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4.0.0
+        with:
+          terraform_version: '1.11.4'
+          terraform_wrapper: false
+      - run: go generate ./...
+      - name: git diff
+        run: |
+          git diff --compact-summary --exit-code || \
+            (echo; echo "Unexpected difference in directories after code generation. Run 'go generate ./...' command and commit."; exit 1)
+
+  test:
+    name: Unit Tests (fake API)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        terraform:
+          - '1.11.4'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+      - uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4.0.0
+        with:
+          terraform_version: ${{ matrix.terraform }}
+          terraform_wrapper: false
+      - run: go test -v -cover ./...
+
+  testacc:
+    name: Acceptance Tests (sandbox)
+    # Dependabot and fork PRs do not receive repository secrets, so testAccPreCheck would fail before reaching the API.
+    if: github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+      - uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4.0.0
+        with:
+          terraform_version: '1.11.4'
+          terraform_wrapper: false
+      - env:
+          TF_ACC: '1'
+          MUUMUU_DOMAIN_TOKEN: ${{ secrets.MUUMUU_DOMAIN_TOKEN }}
+          MUUMUU_DOMAIN_BASE_URL: https://api-sandbox.muumuu-domain.com/api/v2
+          MUUMUU_DOMAIN_TEST_DOMAIN_ID: ${{ secrets.MUUMUU_DOMAIN_TEST_DOMAIN_ID }}
+          MUUMUU_DOMAIN_TEST_DOMAIN_FQDN: ${{ secrets.MUUMUU_DOMAIN_TEST_DOMAIN_FQDN }}
+        run: go test -v -run '^TestAcc' ./internal/provider/
