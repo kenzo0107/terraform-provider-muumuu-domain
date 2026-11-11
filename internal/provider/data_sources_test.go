@@ -105,3 +105,47 @@ func TestNameserversDataSource_StripsTrailingDots(t *testing.T) {
 		},
 	})
 }
+
+func TestAccDataSources_UnknownDomainIsReportedAsError(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      `data "muumuu_domain" "test" { fqdn = "tf-acc-not-owned.example" }`,
+				ExpectError: regexp.MustCompile(`domain tf-acc-not-owned.example was not found`),
+			},
+			{
+				Config:      `data "muumuu_domain" "test" { id = "MU99999999" }`,
+				ExpectError: regexp.MustCompile(`muumuu-domain:\s+404\s+not_found`),
+			},
+			{
+				Config:      `data "muumuu_dns_records" "test" { domain_id = "MU99999999" }`,
+				ExpectError: regexp.MustCompile(`muumuu-domain:\s+404\s+not_found`),
+			},
+			{
+				Config:      `data "muumuu_nameservers" "test" { domain_id = "MU99999999" }`,
+				ExpectError: regexp.MustCompile(`muumuu-domain:\s+404\s+not_found`),
+			},
+		},
+	})
+}
+
+func TestAccProvider_InvalidTokenIsReportedAsError(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: `
+provider "muumuu" {
+  token = "muu_pat_sandbox_invalid"
+}
+
+data "muumuu_domain" "test" { fqdn = "example.com" }
+`,
+				ExpectError: regexp.MustCompile(`401\s+invalid_token`),
+			},
+		},
+	})
+}

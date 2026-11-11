@@ -207,7 +207,7 @@ func TestAccDNSRecordResource(t *testing.T) {
 	fqdn := fmt.Sprintf("tf-acc-%s.%s", acctest.RandString(8), os.Getenv("MUUMUU_DOMAIN_TEST_DOMAIN_FQDN"))
 
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheck(t) },
+		PreCheck:                 func() { testAccPreCheckDomain(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{

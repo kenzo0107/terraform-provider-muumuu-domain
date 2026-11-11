@@ -41,6 +41,8 @@ func (r *domainAutoRenewResource) Schema(_ context.Context, _ resource.SchemaReq
 Manages whether a domain is renewed automatically.
 
 Destroying this resource only removes it from the Terraform state and leaves the setting unchanged.
+
+The token needs permission to update domains. Sandbox personal access tokens cannot be granted it, and the API answers `403 insufficient_scope`.
 `,
 		Attributes: map[string]schema.Attribute{
 			"domain_id": schema.StringAttribute{

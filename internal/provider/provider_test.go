@@ -23,9 +23,19 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 
 func testAccPreCheck(t *testing.T) {
 	t.Helper()
-	for _, k := range []string{envToken, envBaseURL, "MUUMUU_DOMAIN_TEST_DOMAIN_ID", "MUUMUU_DOMAIN_TEST_DOMAIN_FQDN"} {
+	for _, k := range []string{envToken, envBaseURL} {
 		if os.Getenv(k) == "" {
 			t.Fatalf("%s must be set for acceptance tests", k)
+		}
+	}
+}
+
+func testAccPreCheckDomain(t *testing.T) {
+	t.Helper()
+	testAccPreCheck(t)
+	for _, k := range []string{"MUUMUU_DOMAIN_TEST_DOMAIN_ID", "MUUMUU_DOMAIN_TEST_DOMAIN_FQDN"} {
+		if os.Getenv(k) == "" {
+			t.Skipf("%s is not set; the sandbox has no domain to test against", k)
 		}
 	}
 }

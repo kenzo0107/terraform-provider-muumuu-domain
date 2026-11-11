@@ -54,6 +54,7 @@ mise run generate   # formats examples and regenerates docs/
 # acceptance tests against the sandbox
 export MUUMUU_DOMAIN_TOKEN=muu_pat_sandbox_xxx
 export MUUMUU_DOMAIN_BASE_URL=https://api-sandbox.muumuu-domain.com/api/v2
+# optional: the sandbox has no domains, so DNS record tests are skipped without these
 export MUUMUU_DOMAIN_TEST_DOMAIN_ID=MU00000001
 export MUUMUU_DOMAIN_TEST_DOMAIN_FQDN=example.com
 mise run testacc
