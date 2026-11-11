@@ -7,13 +7,12 @@ resource "muumuu_dns_record" "www" {
   fqdn      = "www.example.com"
   type      = "A"
   value     = "192.0.2.1"
-  ttl       = 300
 }
 
 resource "muumuu_dns_record" "mx" {
   domain_id = data.muumuu_domain.example.id
   fqdn      = "example.com"
   type      = "MX"
-  value     = "mail.example.com"
+  value     = "mail.example.com."
   priority  = 10
 }

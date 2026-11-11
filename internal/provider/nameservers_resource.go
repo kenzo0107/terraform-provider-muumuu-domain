@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
@@ -31,6 +32,11 @@ var nameserverSetupTypes = []string{
 	muumuu.NameserverSetupTypeMuumuuDNS,
 	muumuu.NameserverSetupTypeParking,
 	muumuu.NameserverSetupTypeOther,
+}
+
+var nameserverSetupTypesWithNameservers = []string{
+	muumuu.NameserverSetupTypeCustom,
+	muumuu.NameserverSetupTypeAcquiredDomain,
 }
 
 func newNameserversResource() resource.Resource {
@@ -73,17 +79,17 @@ The settings always exist for a domain, so destroying this resource only removes
 				Validators:          []validator.String{stringvalidator.OneOf(nameserverSetupTypes...)},
 			},
 			"nameservers": schema.ListAttribute{
-				MarkdownDescription: "The nameservers. Required when `setup_type` is `custom`; otherwise set by Muumuu Domain.",
+				MarkdownDescription: "The nameservers (1 to 6). Required when `setup_type` is `custom` or `acquired_domain`; otherwise set by Muumuu Domain.",
 				ElementType:         types.StringType,
 				Optional:            true,
 				Computed:            true,
 				Validators: []validator.List{
-					listvalidator.SizeAtLeast(1),
+					listvalidator.SizeBetween(1, 6),
 					listvalidator.ValueStringsAre(fqdnValidator()),
 				},
 			},
 			"confirm_existing_records": schema.BoolAttribute{
-				MarkdownDescription: "Confirms that existing DNS records may be affected by the change. Only sent to the API; not read back.",
+				MarkdownDescription: "Explicitly approves switching to `muumuu_dns` while keeping the existing Muumuu DNS records. Without it, the API rejects the switch with `409 existing_dns_records` when records remain. Only sent to the API; not read back.",
 				Optional:            true,
 			},
 		},
@@ -97,12 +103,12 @@ func (r *nameserversResource) ValidateConfig(ctx context.Context, req resource.V
 		return
 	}
 
-	isCustom := config.SetupType.ValueString() == muumuu.NameserverSetupTypeCustom
+	needsNameservers := slices.Contains(nameserverSetupTypesWithNameservers, config.SetupType.ValueString())
 	switch {
-	case isCustom && config.Nameservers.IsNull():
-		resp.Diagnostics.AddAttributeError(path.Root("nameservers"), "Missing nameservers", "nameservers is required when setup_type is custom.")
-	case !isCustom && !config.Nameservers.IsNull():
-		resp.Diagnostics.AddAttributeError(path.Root("nameservers"), "Unexpected nameservers", "nameservers can only be set when setup_type is custom.")
+	case needsNameservers && config.Nameservers.IsNull():
+		resp.Diagnostics.AddAttributeError(path.Root("nameservers"), "Missing nameservers", "nameservers is required when setup_type is custom or acquired_domain.")
+	case !needsNameservers && !config.Nameservers.IsNull():
+		resp.Diagnostics.AddAttributeError(path.Root("nameservers"), "Unexpected nameservers", "nameservers can only be set when setup_type is custom or acquired_domain.")
 	}
 }
 

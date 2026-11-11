@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
@@ -44,14 +45,11 @@ func TestDNSRecordResource_CRUD(t *testing.T) {
 				Check: resource.TestCheckResourceAttr(name, "value", "b.example.net"),
 			},
 			{
-				Config: testDNSRecordConfig(fakeDomainID, "www.example.com", "CNAME", "b.example.net", "ttl = 300"),
+				Config: testDNSRecordConfig(fakeDomainID, "api.example.com", "CNAME", "b.example.net", ""),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(name, plancheck.ResourceActionDestroyBeforeCreate)},
 				},
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(name, "id", "102"),
-					resource.TestCheckResourceAttr(name, "ttl", "300"),
-				),
+				Check: resource.TestCheckResourceAttr(name, "id", "102"),
 			},
 		},
 	})
@@ -131,6 +129,33 @@ func TestDNSRecordResource_RemovedOutsideTerraformIsRecreated(t *testing.T) {
 				Config:    config,
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(name, plancheck.ResourceActionCreate)},
+				},
+			},
+		},
+	})
+}
+
+func TestDNSRecordResource_RefreshListsOnlyMatchingFQDNAndType(t *testing.T) {
+	api := newFakeAPI(t)
+	config := testDNSRecordConfig(fakeDomainID, "www.example.com", "A", "192.0.2.1", "")
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: config},
+			{
+				PreConfig: func() { api.recordListQueries = nil },
+				Config:    config,
+				Check: func(*terraform.State) error {
+					for _, q := range api.recordListQueries {
+						if !strings.Contains(q, "fqdn=www.example.com") || !strings.Contains(q, "type=A") {
+							return fmt.Errorf("record list was not filtered: %q", q)
+						}
+					}
+					if len(api.recordListQueries) == 0 {
+						return fmt.Errorf("record list was never requested")
+					}
+					return nil
 				},
 			},
 		},

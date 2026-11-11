@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -98,18 +99,15 @@ Only ` + "`value`" + ` and ` + "`priority`" + ` can be updated in place. Changin
 				Validators: []validator.String{stringvalidator.OneOf(dnsRecordTypes...)},
 			},
 			"value": schema.StringAttribute{
-				MarkdownDescription: "The record value. A difference only in a trailing dot is ignored, except that the first apply after an import may update the value in place to the configured form.",
+				MarkdownDescription: "The record value in the format of the record type. `CNAME`, `MX`, `NS` and `ALIAS` values must end with a dot (e.g. `mail.example.com.`).",
 				Required:            true,
 			},
 			"ttl": schema.Int64Attribute{
-				MarkdownDescription: "The TTL in seconds. Defaults to the API default when omitted.",
-				Optional:            true,
+				MarkdownDescription: "The TTL in seconds. Muumuu DNS fixes it to `3600`.",
 				Computed:            true,
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplaceIfConfigured(),
 					int64planmodifier.UseStateForUnknown(),
 				},
-				Validators: []validator.Int64{int64validator.AtLeast(1)},
 			},
 			"priority": schema.Int64Attribute{
 				MarkdownDescription: "The priority. Used by `MX` and `SRV` records. Removing it from the configuration keeps the current value.",
@@ -149,9 +147,6 @@ func (r *dnsRecordResource) Create(ctx context.Context, req resource.CreateReque
 		Value:    plan.Value.ValueString(),
 		Priority: int64PtrToIntPtr(plan.Priority),
 	}
-	if !plan.TTL.IsUnknown() && !plan.TTL.IsNull() {
-		input.TTL = int(plan.TTL.ValueInt64())
-	}
 
 	domainID := plan.DomainID.ValueString()
 	o, err := r.client.CreateDNSRecord(ctx, domainID, input)
@@ -180,7 +175,7 @@ func (r *dnsRecordResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	o, err := r.client.GetDNSRecord(ctx, domainID, recordID)
+	o, err := r.findDNSRecord(ctx, domainID, recordID, state)
 	if muumuu.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -260,6 +255,34 @@ func (r *dnsRecordResource) ImportState(ctx context.Context, req resource.Import
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("domain_id"), domainID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), recordID)...)
+}
+
+// Why not GetDNSRecord alone: it scans the whole zone per record, which exhausts the 1,000 requests/hour limit on large zones.
+func (r *dnsRecordResource) findDNSRecord(ctx context.Context, domainID string, recordID int64, state dnsRecordResourceModel) (*muumuu.DNSRecord, error) {
+	if state.FQDN.IsNull() || state.Type.IsNull() {
+		return r.client.GetDNSRecord(ctx, domainID, recordID)
+	}
+
+	input := &muumuu.InputGetDNSRecords{
+		ListOptions: muumuu.ListOptions{Page: 1, PageSize: 100},
+		FQDN:        state.FQDN.ValueString(),
+		Type:        state.Type.ValueString(),
+	}
+	for {
+		out, err := r.client.GetDNSRecords(ctx, domainID, input)
+		if err != nil {
+			return nil, err
+		}
+		for i := range out.DNSRecords {
+			if out.DNSRecords[i].ID == recordID {
+				return &out.DNSRecords[i], nil
+			}
+		}
+		if !out.Meta.HasNext() || len(out.DNSRecords) == 0 {
+			return nil, &muumuu.Error{StatusCode: http.StatusNotFound, Code: muumuu.ErrorCodeNotFound}
+		}
+		input.Page++
+	}
 }
 
 func newDNSRecordResourceModel(domainID string, o *muumuu.DNSRecord, prior dnsRecordResourceModel) *dnsRecordResourceModel {

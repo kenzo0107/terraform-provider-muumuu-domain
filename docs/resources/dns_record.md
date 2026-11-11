@@ -25,14 +25,13 @@ resource "muumuu_dns_record" "www" {
   fqdn      = "www.example.com"
   type      = "A"
   value     = "192.0.2.1"
-  ttl       = 300
 }
 
 resource "muumuu_dns_record" "mx" {
   domain_id = data.muumuu_domain.example.id
   fqdn      = "example.com"
   type      = "MX"
-  value     = "mail.example.com"
+  value     = "mail.example.com."
   priority  = 10
 }
 ```
@@ -45,16 +44,16 @@ resource "muumuu_dns_record" "mx" {
 - `domain_id` (String) The ID of the domain (e.g. `MU00000001`).
 - `fqdn` (String) The fully qualified name of the record in lower case without a trailing dot (e.g. `www.example.com`). Use the domain name itself for the zone apex.
 - `type` (String) The record type. One of `A`, `AAAA`, `CNAME`, `MX`, `TXT`, `NS`, `ALIAS`, `SRV`, `CAA`.
-- `value` (String) The record value. A difference only in a trailing dot is ignored, except that the first apply after an import may update the value in place to the configured form.
+- `value` (String) The record value in the format of the record type. `CNAME`, `MX`, `NS` and `ALIAS` values must end with a dot (e.g. `mail.example.com.`).
 
 ### Optional
 
 - `priority` (Number) The priority. Used by `MX` and `SRV` records. Removing it from the configuration keeps the current value.
-- `ttl` (Number) The TTL in seconds. Defaults to the API default when omitted.
 
 ### Read-Only
 
 - `id` (String) The ID of the DNS record.
+- `ttl` (Number) The TTL in seconds. Muumuu DNS fixes it to `3600`.
 
 ## Import
 

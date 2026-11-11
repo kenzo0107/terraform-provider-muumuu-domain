@@ -42,8 +42,8 @@ resource "muumuu_nameservers" "example" {
 
 ### Optional
 
-- `confirm_existing_records` (Boolean) Confirms that existing DNS records may be affected by the change. Only sent to the API; not read back.
-- `nameservers` (List of String) The nameservers. Required when `setup_type` is `custom`; otherwise set by Muumuu Domain.
+- `confirm_existing_records` (Boolean) Explicitly approves switching to `muumuu_dns` while keeping the existing Muumuu DNS records. Without it, the API rejects the switch with `409 existing_dns_records` when records remain. Only sent to the API; not read back.
+- `nameservers` (List of String) The nameservers (1 to 6). Required when `setup_type` is `custom` or `acquired_domain`; otherwise set by Muumuu Domain.
 
 ## Import
 

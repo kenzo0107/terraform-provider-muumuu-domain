@@ -51,6 +51,7 @@ type fakeAPI struct {
 	requests    []string
 
 	nameserverPatches int
+	recordListQueries []string
 }
 
 func newFakeAPI(t *testing.T) *fakeAPI {
@@ -127,6 +128,10 @@ func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if t := r.URL.Query().Get("type"); t != "" && t != rec.Type {
 				continue
 			}
+			if q := r.URL.Query().Get("fqdn"); q != "" && strings.TrimSuffix(q, ".") != strings.TrimSuffix(rec.FQDN, ".") {
+				continue
+			}
+			f.recordListQueries = append(f.recordListQueries, r.URL.RawQuery)
 			data = append(data, rec)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"data": data, "meta": map[string]int{"total": len(data), "page": 1, "page-size": 100}})

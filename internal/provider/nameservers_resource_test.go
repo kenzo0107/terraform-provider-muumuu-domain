@@ -81,12 +81,12 @@ func TestNameserversResource_ValidatesNameserversAgainstSetupType(t *testing.T) 
 		Steps: []resource.TestStep{
 			{
 				Config:      testNameserversConfig(`setup_type = "custom"`),
-				ExpectError: regexp.MustCompile(`nameservers is required when setup_type is custom`),
+				ExpectError: regexp.MustCompile(`nameservers is required when setup_type is custom or\s+acquired_domain`),
 			},
 			{
 				Config: testNameserversConfig(`setup_type = "muumuu_dns"
   nameservers = ["ns1.example.com"]`),
-				ExpectError: regexp.MustCompile(`nameservers can only be set when setup_type is custom`),
+				ExpectError: regexp.MustCompile(`nameservers can only be set when setup_type is custom or\s+acquired_domain`),
 			},
 		},
 	})
