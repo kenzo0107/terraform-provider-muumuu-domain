@@ -5,6 +5,7 @@ subcategory: ""
 description: |-
   Manages whether a domain is renewed automatically.
   Destroying this resource only removes it from the Terraform state and leaves the setting unchanged.
+  The token needs permission to update domains. Sandbox personal access tokens cannot be granted it, and the API answers 403 insufficient_scope.
 ---
 
 # muumuu_domain_auto_renew (Resource)
@@ -12,6 +13,8 @@ description: |-
 Manages whether a domain is renewed automatically.
 
 Destroying this resource only removes it from the Terraform state and leaves the setting unchanged.
+
+The token needs permission to update domains. Sandbox personal access tokens cannot be granted it, and the API answers `403 insufficient_scope`.
 
 ## Example Usage
 
